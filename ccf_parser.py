@@ -17,12 +17,12 @@ CACHE_TTL = 3600  # 1 hour
 
 TARGET_CONFERENCES = {
     "AAAI":    {"sub": "AI", "yaml": "conference/AI/aaai.yml"},
-    "CVPR":    {"sub": "CG", "yaml": "conference/CG/cvpr.yml"},
-    "ICCV":    {"sub": "CG", "yaml": "conference/CG/iccv.yml"},
-    "ECCV":    {"sub": "CG", "yaml": "conference/CG/eccv.yml"},
+    "CVPR":    {"sub": "AI", "yaml": "conference/AI/cvpr.yml"},
+    "ICCV":    {"sub": "AI", "yaml": "conference/AI/iccv.yml"},
+    "ECCV":    {"sub": "AI", "yaml": "conference/AI/eccv.yml"},
     "ICLR":    {"sub": "AI", "yaml": "conference/AI/iclr.yml"},
     "ICML":    {"sub": "AI", "yaml": "conference/AI/icml.yml"},
-    "NeurIPS": {"sub": "AI", "yaml": "conference/AI/neurips.yml"},
+    "NeurIPS": {"sub": "AI", "yaml": "conference/AI/nips.yml"},
 }
 
 
