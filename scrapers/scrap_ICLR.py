@@ -62,6 +62,44 @@ class ICLRScraper(BaseScraper):
         print(f"完成！成功提取 {len(papers)} 篇论文")
         return papers
 
+    def get_conference_metadata(self, conference, year):
+        """
+        提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
+        """
+        conference_url = f"{self.base_url}/virtual/{year}/papers.html"
+        print(f"正在获取 ICLR {year} 的轻量级元数据...")
+
+        html = self._make_request(conference_url)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, 'html.parser')
+        poster_links = soup.find_all('a', href=lambda x: x and f'/virtual/{year}/poster/' in x)
+        poster_links = [l for l in poster_links if '/accounts/login' not in l.get('href', '')]
+        print(f"找到 {len(poster_links)} 篇论文")
+
+        papers = []
+        for link in poster_links:
+            paper_url = urljoin(self.base_url, link['href'])
+            paper_name = link.get_text(strip=True)
+            if not paper_name:
+                continue
+
+            paper_data = {
+                "_id": "",
+                "paper_url": paper_url,
+                "paper_abstract": "",
+                "paper_authors": "",
+                "paper_name": paper_name,
+                "paper_year": str(year),
+                "citation": "",
+                "conference": "ICLR"
+            }
+            papers.append(paper_data)
+
+        print(f"完成！提取 {len(papers)} 篇轻量级元数据")
+        return papers
+
     def _extract_paper_metadata(self, title_elem, conference, year):
         """
         从论文元素中提取元数据（ICLR 不使用此方法，保留接口兼容性）

@@ -19,6 +19,63 @@ class CVFScraper(BaseScraper):
     def __init__(self):
         super().__init__("https://openaccess.thecvf.com/")
 
+    def get_conference_metadata(self, conference, year):
+        """
+        提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
+        """
+        conference_url = f"{self.base_url}{conference}{year}?day=all"
+        print(f"正在获取 {conference} {year} 的轻量级元数据...")
+
+        html = self._make_request(conference_url)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, 'html.parser')
+        paper_title_elements = soup.find_all('dt', class_='ptitle')
+        print(f"找到 {len(paper_title_elements)} 篇论文")
+
+        papers = []
+        for title_elem in paper_title_elements:
+            paper_data = self._extract_lightweight_from_elem(title_elem, conference, year)
+            if paper_data:
+                papers.append(paper_data)
+
+        print(f"完成！提取 {len(papers)} 篇 {conference} {year} 轻量级元数据")
+        return papers
+
+    def _extract_lightweight_from_elem(self, title_elem, conference, year):
+        """从 dt 元素中提取轻量级元数据（不访问详情页）"""
+        title_link = title_elem.find('a', href=True)
+        if not title_link:
+            return None
+
+        paper_name = title_link.get_text(strip=True)
+        paper_url = urljoin(self.base_url, title_link['href'])
+
+        next_dd = title_elem.find_next_sibling('dd')
+        if not next_dd:
+            return None
+
+        authors = []
+        author_forms = next_dd.find_all('form', class_='authsearch')
+        for form in author_forms:
+            author_link = form.find('a')
+            if author_link:
+                authors.append(author_link.get_text(strip=True))
+
+        paper_authors = ", ".join(authors) if authors else "Unknown"
+
+        return {
+            "_id": "",
+            "paper_url": paper_url,
+            "paper_abstract": "",
+            "paper_authors": paper_authors,
+            "paper_name": paper_name,
+            "paper_year": str(year),
+            "citation": "",
+            "conference": conference
+        }
+
     def get_conference_papers(self, conference, year):
         """
         获取特定会议和年份的论文列表

@@ -65,6 +65,54 @@ class AAAIScraper(BaseScraper):
         print(f"找到 {len(issue_urls)} 个 AAAI {year} issue")
         return issue_urls
 
+    def get_conference_metadata(self, conference, year):
+        """
+        提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
+        """
+        print(f"正在获取 AAAI {year} 的轻量级元数据...")
+
+        issue_urls = self._get_issue_urls_for_year(year)
+        if not issue_urls:
+            return []
+
+        papers = []
+        for issue_url in issue_urls:
+            html = self._make_request(issue_url)
+            if not html:
+                continue
+
+            soup = BeautifulSoup(html, 'html.parser')
+            article_links = soup.find_all('a', href=lambda x: x and 'article/view/' in str(x))
+
+            for link in article_links:
+                href = link['href']
+                if 'download' in href or 'supp' in href.lower():
+                    continue
+
+                path_parts = href.rstrip('/').split('/')
+                if len(path_parts) != 8:
+                    continue
+
+                paper_url = urljoin(self.base_url, href)
+                paper_name = link.get_text(strip=True)
+                if not paper_name:
+                    continue
+
+                paper_data = {
+                    "_id": "",
+                    "paper_url": paper_url,
+                    "paper_abstract": "",
+                    "paper_authors": "",
+                    "paper_name": paper_name,
+                    "paper_year": str(year),
+                    "citation": "",
+                    "conference": "AAAI"
+                }
+                papers.append(paper_data)
+
+        print(f"完成！提取 {len(papers)} 篇 AAAI {year} 轻量级元数据")
+        return papers
+
     def get_conference_papers(self, conference, year):
         """
         获取特定会议和年份的论文列表

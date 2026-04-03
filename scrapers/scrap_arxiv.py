@@ -8,7 +8,7 @@
 import arxiv
 import json
 
-def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, conference="NeurIPS", year="2026"):
+def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, conference="NeurIPS", year="2026", save_json=False):
     """
     执行搜索并保存结果。
     :param max_results: 最大返回结果数
@@ -30,14 +30,10 @@ def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, confere
     print(f"正在搜索 arXiv... (最多 {max_results} 条结果)\n")
     results = list(client.results(search))
 
-    output_file = "{}{}.json".format(conference, year)
+    output_file = "{}{}_papers_arxiv.json".format(conference, year)
 
     if not results:
         print("未找到符合条件的论文。")
-        # 仍然创建空的 JSON 文件
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump([], f, indent=2, ensure_ascii=False)
-        print(f"已创建空的 {output_file}")
         return
 
     papers = []
@@ -55,15 +51,21 @@ def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, confere
         }
         papers.append(record)
 
-    # 写入 JSON 文件
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(papers, f, indent=2, ensure_ascii=False)
-
-    print(f"成功保存 {len(papers)} 条记录到 {output_file}")
+    if save_json:
+        _save_to_json(papers, output_file)
 
     # 保存到数据库
     _save_arxiv_to_dataset(papers, conference, year)
 
+def _save_to_json(data, filename):
+    """将数据保存为JSON文件"""
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+    print(f"\n{'='*50}")
+    print(f"爬取完成！共获取 {len(data)} 篇论文")
+    print(f"所有数据已保存到 {filename}")
+    print(f"{'='*50}")
 
 def _save_arxiv_to_dataset(papers, summit, year):
     """将 arXiv 搜索结果保存到 SQLite 数据库"""

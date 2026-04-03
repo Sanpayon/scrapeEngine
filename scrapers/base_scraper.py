@@ -65,7 +65,12 @@ class BaseScraper(ABC):
 
     @abstractmethod
     def get_conference_papers(self, conference, year):
-        """获取特定会议和年份的论文列表"""
+        """获取特定会议和年份的论文列表（完整版，含摘要）"""
+        pass
+
+    @abstractmethod
+    def get_conference_metadata(self, conference, year):
+        """提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空"""
         pass
 
     @abstractmethod
@@ -78,13 +83,32 @@ class BaseScraper(ABC):
         """获取论文详情页面的元数据"""
         pass
 
+    def fill_abstracts(self, papers: list[dict]) -> list[dict]:
+        """为已有元数据的论文填充摘要"""
+        filled = []
+        for i, paper in enumerate(papers):
+            if paper.get("paper_abstract"):
+                filled.append(paper)
+                continue
+            print(f"正在获取摘要: {paper['paper_name']}")
+            abstract = self._get_paper_details(paper["paper_url"])
+            paper["paper_abstract"] = abstract or ""
+            filled.append(paper)
+            if (i + 1) % 10 == 0:
+                print(f"摘要进度: {i+1}/{len(papers)}")
+            self._random_delay()
+        return filled
+
     
-    def crawl_conference(self, conference, year):
+    def crawl_conference(self, conference, year, save_json=False):
         """爬取特定会议和年份的论文元数据"""
         all_papers = []
         papers = self.get_conference_papers(conference, year)
         all_papers.extend(papers)
-        self._save_to_json(all_papers, f"{conference}_{year}_papers.json")
+        
+        if save_json:
+            self._save_to_json(all_papers, f"{conference}_{year}_papers.json")
+
         self._save_to_dataset(all_papers)
         return all_papers
 

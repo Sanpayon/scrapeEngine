@@ -17,6 +17,61 @@ class ECCVScraper(BaseScraper):
     def __init__(self):
         super().__init__("https://www.ecva.net/")
 
+    def get_conference_metadata(self, conference, year):
+        """
+        提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
+        """
+        conference_url = f"{self.base_url}papers.php"
+        print(f"正在获取 ECCV {year} 的轻量级元数据...")
+
+        html = self._make_request(conference_url)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, 'html.parser')
+        paper_title_elements = soup.find_all('dt', class_='ptitle')
+        print(f"找到 {len(paper_title_elements)} 篇论文（所有年份）")
+
+        papers = []
+        for title_elem in paper_title_elements:
+            paper_data = self._extract_lightweight_from_elem(title_elem, conference, year)
+            if paper_data:
+                papers.append(paper_data)
+
+        print(f"完成！提取 {len(papers)} 篇 ECCV {year} 轻量级元数据")
+        return papers
+
+    def _extract_lightweight_from_elem(self, title_elem, conference, year):
+        """从 dt 元素中提取轻量级元数据（不访问详情页）"""
+        title_link = title_elem.find('a', href=True)
+        if not title_link:
+            return None
+
+        paper_url = title_link['href']
+        if f'eccv_{year}' not in paper_url:
+            return None
+
+        paper_name = title_link.get_text(strip=True)
+        paper_url = urljoin(self.base_url, paper_url)
+
+        next_dd = title_elem.find_next_sibling('dd')
+        if not next_dd:
+            return None
+
+        authors_text = next_dd.get_text(strip=True)
+        paper_authors = authors_text if authors_text else "Unknown"
+
+        return {
+            "_id": "",
+            "paper_url": paper_url,
+            "paper_abstract": "",
+            "paper_authors": paper_authors,
+            "paper_name": paper_name,
+            "paper_year": str(year),
+            "citation": "",
+            "conference": "ECCV"
+        }
+
     def get_conference_papers(self, conference, year):
         """
         获取特定会议和年份的论文列表

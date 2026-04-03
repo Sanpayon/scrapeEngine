@@ -75,6 +75,75 @@ class ICMLScraper(BaseScraper):
         print(f"完成！成功提取 {len(papers)} 篇论文")
         return papers
 
+    def get_conference_metadata(self, conference, year):
+        """
+        提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
+        """
+        volume = self.YEAR_TO_VOLUME.get(year)
+        if not volume:
+            return []
+
+        conference_url = f"{self.base_url}{volume}/"
+        print(f"正在获取 ICML {year} ({volume}) 的轻量级元数据...")
+
+        html = self._make_request(conference_url)
+        if not html:
+            return []
+
+        soup = BeautifulSoup(html, 'html.parser')
+        paper_divs = soup.find_all('div', class_='paper')
+        print(f"找到 {len(paper_divs)} 篇论文")
+
+        papers = []
+        for paper_div in paper_divs:
+            paper_data = self._extract_lightweight_from_div(paper_div, conference, year)
+            if paper_data:
+                papers.append(paper_data)
+
+        print(f"完成！提取 {len(papers)} 篇轻量级元数据")
+        return papers
+
+    def _extract_lightweight_from_div(self, paper_div, conference, year):
+        """从 div 中提取轻量级元数据（不访问详情页）"""
+        title_elem = paper_div.find('p', class_='title')
+        if not title_elem:
+            return None
+
+        paper_name = title_elem.get_text(strip=True)
+        if not paper_name:
+            return None
+
+        details_elem = paper_div.find('p', class_='details')
+        authors = []
+        if details_elem:
+            authors_span = details_elem.find('span', class_='authors')
+            if authors_span:
+                author_texts = authors_span.get_text(strip=True).split(',')
+                authors = [a.strip() for a in author_texts if a.strip()]
+
+        paper_authors = ", ".join(authors) if authors else "Unknown"
+
+        links_elem = paper_div.find('p', class_='links')
+        paper_url = ""
+        if links_elem:
+            abs_link = links_elem.find('a', string='abs')
+            if abs_link and abs_link.get('href'):
+                paper_url = urljoin(self.base_url, abs_link['href'])
+
+        if not paper_url:
+            return None
+
+        return {
+            "_id": "",
+            "paper_url": paper_url,
+            "paper_abstract": "",
+            "paper_authors": paper_authors,
+            "paper_name": paper_name,
+            "paper_year": str(year),
+            "citation": "",
+            "conference": "ICML"
+        }
+
     def _extract_paper_metadata(self, paper_div, conference, year):
         """
         从论文元素中提取元数据
