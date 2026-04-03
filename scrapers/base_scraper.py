@@ -85,7 +85,17 @@ class BaseScraper(ABC):
         papers = self.get_conference_papers(conference, year)
         all_papers.extend(papers)
         self._save_to_json(all_papers, f"{conference}_{year}_papers.json")
+        self._save_to_dataset(all_papers)
         return all_papers
+
+    def _save_to_dataset(self, data):
+        """将数据保存到 SQLite 数据库"""
+        try:
+            from database import insert_papers
+            inserted = insert_papers(data)
+            print(f"数据库保存完成！新插入 {inserted} 篇论文（共 {len(data)} 篇）")
+        except Exception as e:
+            print(f"数据库保存失败: {e}")
 
     def _save_to_json(self, data, filename):
         """将数据保存为JSON文件"""

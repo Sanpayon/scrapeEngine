@@ -8,15 +8,15 @@
 import arxiv
 import json
 
-def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, summit="NeurIPS", year="2026"):
+def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, conference="NeurIPS", year="2026"):
     """
     执行搜索并保存结果。
     :param max_results: 最大返回结果数
     :param sort_by: 排序方式
-    :param summit: 顶会名称
+    :param conference: 顶会名称
     :param year: 顶会年度
     """
-    query = query = "{}{} OR {} {}".format(summit, year, summit, year)
+    query = query = "{}{} OR {} {}".format(conference, year, conference, year)
     print(f"搜索查询: {query}\n")
 
     client = arxiv.Client()
@@ -30,7 +30,7 @@ def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, summit=
     print(f"正在搜索 arXiv... (最多 {max_results} 条结果)\n")
     results = list(client.results(search))
 
-    output_file = "{}{}.json".format(summit, year)
+    output_file = "{}{}.json".format(conference, year)
 
     if not results:
         print("未找到符合条件的论文。")
@@ -50,7 +50,8 @@ def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, summit=
             "paper_authors": ", ".join([a.name for a in paper.authors]),
             "paper_name": paper.title.strip(),
             "paper_year": str(paper.published.year),
-            "citation": ""                             # 留空，可手动补充
+            "citation": "",                             # 留空，可手动补充
+            "conference": conference
         }
         papers.append(record)
 
@@ -59,3 +60,19 @@ def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, summit=
         json.dump(papers, f, indent=2, ensure_ascii=False)
 
     print(f"成功保存 {len(papers)} 条记录到 {output_file}")
+
+    # 保存到数据库
+    _save_arxiv_to_dataset(papers, conference, year)
+
+
+def _save_arxiv_to_dataset(papers, summit, year):
+    """将 arXiv 搜索结果保存到 SQLite 数据库"""
+    try:
+        from database import insert_papers
+        for p in papers:
+            p["conference"] = summit
+            p["paper_year"] = str(year)
+        inserted = insert_papers(papers)
+        print(f"数据库保存完成！新插入 {inserted} 篇论文（共 {len(papers)} 篇）")
+    except Exception as e:
+        print(f"数据库保存失败: {e}")
