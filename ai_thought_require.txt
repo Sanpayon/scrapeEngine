@@ -1,0 +1,8 @@
+# ai_thought_require.txt
+# 建议的宽松依赖（覆盖 scrapers 中用到的第三方库与常见兼容库）
+# 说明：使用宽松区间以便兼容不同环境；必要时可进一步锁版本。
+
+arxiv>=1.4.0,<3.0.0
+requests>=2.20.0,<3.0.0
+beautifulsoup4>=4.6.0,<5.0.0
+soupsieve>=2.2.0,<3.0.0
