@@ -153,6 +153,4 @@ class ICLRScraper(BaseScraper):
             "conference": "ICLR"
         }
 
-        self._random_delay()
-
         return paper_data

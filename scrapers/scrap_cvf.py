@@ -181,9 +181,6 @@ class CVFScraper(BaseScraper):
 
         # ---------------- 到这里终止改写 ----------------
 
-        # 随机延迟
-        self._random_delay()
-
         return paper_data
 
     def _get_paper_details(self, paper_url):

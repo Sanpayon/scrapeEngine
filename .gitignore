@@ -1,0 +1,6 @@
+.git/
+.vscode/
+ppenv/
+scrapers/__pycache__/
+*__pycache__
+*.db

@@ -231,6 +231,4 @@ class AAAIScraper(BaseScraper):
             "conference": "AAAI"
         }
 
-        self._random_delay()
-
         return paper_data

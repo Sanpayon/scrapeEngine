@@ -150,8 +150,6 @@ class ECCVScraper(BaseScraper):
             "conference": "ECCV"
         }
 
-        self._random_delay()
-
         return paper_data
 
     def _get_paper_details(self, paper_url):

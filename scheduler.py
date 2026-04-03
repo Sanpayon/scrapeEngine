@@ -25,7 +25,7 @@ from database import (
     init_db, insert_or_update_conference, get_conferences,
     update_conference_status, update_conference_scrape_info,
     get_paper_titles, insert_papers, paper_exists_by_name,
-    update_paper_abstract, get_stats
+    update_paper_abstract, get_stats, get_unscraped_conferences
 )
 from ccf_parser import (
     fetch_all_target_conferences, fetch_conference_info,
@@ -197,7 +197,7 @@ def _scrape_conference_with_retry(conf_name: str, year: str, max_retries: int = 
 
     try:
         # 阶段1：提取轻量级元数据（标题、作者、URL，摘要为空）
-        papers_meta = scraper.extract_lightweight_metadata(conf_name, int(year))
+        papers_meta = scraper.get_conference_papers(conf_name, int(year))
         if not papers_meta:
             logger.warning(f"{conf_name} {year} 未获取到任何元数据")
             update_conference_status(conf_name, year, "scraped")
@@ -304,6 +304,24 @@ def print_status():
             logger.info(f"  {c['name']} {c['year']}: {c['status']} (start: {c['start_date']}, end: {c['end_date']})")
 
 
+def recover_unscraped_conferences():
+    """进程重启后，检查并恢复未爬取但已到时间的会议。"""
+    unscraped = get_unscraped_conferences()
+    if not unscraped:
+        return
+
+    logger.info(f"发现 {len(unscraped)} 个已过期但未爬取的会议，开始恢复...")
+    for conf in unscraped:
+        name = conf["name"]
+        year = conf["year"]
+        retry_count = conf.get("scrape_retry_count", 0)
+        if retry_count >= 3:
+            logger.info(f"  跳过 {name} {year}（已达最大重试次数）")
+            continue
+        logger.info(f"  恢复爬取: {name} {year}")
+        _scrape_conference_with_retry(name, year, retry_count=retry_count)
+
+
 if __name__ == "__main__":
     init_db()
     setup_scheduler()
@@ -315,6 +333,9 @@ if __name__ == "__main__":
     # 首次运行时立即执行一次 CCF 检查
     job_check_ccf_deadlines(random_delay=False)
     print_status()
+
+    # 恢复未爬取的会议（进程重启后）
+    recover_unscraped_conferences()
 
     logger.info("调度器开始运行...")
     try:

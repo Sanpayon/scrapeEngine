@@ -16,7 +16,7 @@ def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, confere
     :param conference: 顶会名称
     :param year: 顶会年度
     """
-    query = query = "{}{} OR {} {}".format(conference, year, conference, year)
+    query = "{}{} OR {} {}".format(conference, year, conference, year)
     print(f"搜索查询: {query}\n")
 
     client = arxiv.Client()
