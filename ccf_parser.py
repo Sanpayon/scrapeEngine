@@ -140,9 +140,12 @@ def fetch_conference_info(conf_name: str) -> list[dict]:
             continue
 
         confs = entry.get("confs", [])
+        current_year = datetime.now().year
         for c in confs:
             year = c.get("year")
             if not year:
+                continue
+            if int(year) < current_year - 1:
                 continue
 
             timeline = c.get("timeline", [])
@@ -183,29 +186,24 @@ def fetch_all_target_conferences() -> list[dict]:
     return all_confs
 
 
+SCRAPER_CONFIG = {
+    "AAAI":    {"scraper_file": "scrap_AAAI", "scraper_class": "AAAIScraper"},
+    "CVPR":    {"scraper_file": "scrap_cvf",  "scraper_class": "CVFScraper"},
+    "ICCV":    {"scraper_file": "scrap_cvf",  "scraper_class": "CVFScraper"},
+    "ECCV":    {"scraper_file": "scrap_ECCV", "scraper_class": "ECCVScraper"},
+    "ICLR":    {"scraper_file": "scrap_ICLR", "scraper_class": "ICLRScraper"},
+    "ICML":    {"scraper_file": "scrap_ICML", "scraper_class": "ICMLScraper"},
+    "NeurIPS": {"scraper_file": "scrap_NIPS", "scraper_class": "NIPSScraper"},
+}
+
+
 def get_conference_scraper_name(conf_name: str) -> str | None:
     """将会议名映射到 scraper 文件名。"""
-    mapping = {
-        "AAAI": "scrap_AAAI",
-        "CVPR": "scrap_cvf",
-        "ICCV": "scrap_cvf",
-        "ECCV": "scrap_ECCV",
-        "ICLR": "scrap_ICLR",
-        "ICML": "scrap_ICML",
-        "NeurIPS": "scrap_NIPS",
-    }
-    return mapping.get(conf_name)
+    config = SCRAPER_CONFIG.get(conf_name)
+    return config["scraper_file"] if config else None
 
 
 def get_conference_scraper_class(conf_name: str) -> str | None:
     """将会议名映射到 scraper 类名。"""
-    mapping = {
-        "AAAI": "AAAIScraper",
-        "CVPR": "CVFScraper",
-        "ICCV": "CVFScraper",
-        "ECCV": "ECCVScraper",
-        "ICLR": "ICLRScraper",
-        "ICML": "ICMLScraper",
-        "NeurIPS": "NIPSScraper",
-    }
-    return mapping.get(conf_name)
+    config = SCRAPER_CONFIG.get(conf_name)
+    return config["scraper_class"] if config else None

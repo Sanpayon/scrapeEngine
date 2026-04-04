@@ -13,7 +13,6 @@ import logging
 import random
 import importlib
 from datetime import datetime, timedelta
-import time
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -55,11 +54,18 @@ scheduler = BlockingScheduler(
     executors=executors,
 )
 
-def _random_delay(min_minute=0, max_minute=30):
-    """在指定范围内随机延迟，单位为分钟。"""
+def _schedule_with_random_delay(job_func, job_id, min_minute=0, max_minute=30):
+    """使用 APScheduler 的 date trigger 在随机延迟后调度任务，不阻塞线程。"""
     delay = random.randint(min_minute, max_minute)
-    logger.info(f"随机延迟 {delay} 分钟...")
-    time.sleep(delay * 60)
+    run_time = datetime.now() + timedelta(minutes=delay)
+    logger.info(f"调度任务 {job_id} 在 {delay} 分钟后执行 (预计 {run_time})")
+    scheduler.add_job(
+        job_func,
+        "date",
+        run_date=run_time,
+        id=f"delayed_{job_id}_{int(datetime.now().timestamp())}",
+        replace_existing=False,
+    )
 
 
 def _get_scraper(conf_name: str):
@@ -89,26 +95,35 @@ def _get_scraper(conf_name: str):
 def job_check_ccf_deadlines(random_delay=True):
     """获取 CCF-Deadlines 会议信息并更新到数据库。"""
     if random_delay:
-        _random_delay()
-    
+        _schedule_with_random_delay(_do_check_ccf_deadlines, "ccf_check")
+        return
+    _do_check_ccf_deadlines()
+
+
+def _do_check_ccf_deadlines():
+    """实际执行 CCF-Deadlines 检查的逻辑。"""
     logger.info("=== 开始检查 CCF-Deadlines ===")
     try:
         all_confs = fetch_all_target_conferences()
         logger.info(f"获取到 {len(all_confs)} 条会议记录")
 
-        now = datetime.now().strftime("%Y-%m-%d")
+        now = datetime.now()
+        now_str = now.strftime("%Y-%m-%d")
+        current_year = now.year
         for conf in all_confs:
-            # 判断会议状态
+            conf_year = int(conf.get("year", 0))
             start_date = conf.get("start_date", "")
             end_date = conf.get("end_date", "")
 
-            if start_date:
+            if conf_year < current_year:
+                conf["status"] = "completed"
+            elif start_date:
                 start_dt = datetime.strptime(start_date, "%Y-%m-%d")
                 end_dt = datetime.strptime(end_date, "%Y-%m-%d") if end_date else start_dt
 
-                if now > end_dt.strftime("%Y-%m-%d"):
+                if now_str > end_dt.strftime("%Y-%m-%d"):
                     conf["status"] = "completed"
-                elif now >= start_dt.strftime("%Y-%m-%d"):
+                elif now_str >= start_dt.strftime("%Y-%m-%d"):
                     conf["status"] = "ongoing"
                 else:
                     conf["status"] = "upcoming"
@@ -128,7 +143,11 @@ def job_check_ccf_deadlines(random_delay=True):
 # ============================================================
 def job_scrape_arxiv_for_upcoming():
     """对 upcoming 会议爬取 arxiv 预印本。"""
-    _random_delay()
+    _schedule_with_random_delay(_do_scrape_arxiv, "arxiv_scrape")
+
+
+def _do_scrape_arxiv():
+    """实际执行 arxiv 爬取的逻辑。"""
     logger.info("=== 开始爬取 arxiv 预印本 ===")
     try:
         upcoming = get_conferences(status="upcoming")
@@ -157,7 +176,11 @@ def job_scrape_arxiv_for_upcoming():
 # ============================================================
 def job_check_and_scrape_conferences():
     """检查哪些会议开始日期 + 10 天，触发爬取。"""
-    _random_delay()
+    _schedule_with_random_delay(_do_check_and_scrape_conferences, "conference_check")
+
+
+def _do_check_and_scrape_conferences():
+    """实际执行会议爬取检查的逻辑。"""
     logger.info("=== 开始检查会议爬取任务 ===")
     try:
         now = datetime.now()

@@ -4,7 +4,10 @@ import requests
 import json
 import time
 import random
+import logging
 from urllib.parse import urljoin
+
+logger = logging.getLogger(__name__)
 
 class BaseScraper(ABC):
     """通用请求爬虫"""
@@ -58,9 +61,9 @@ class BaseScraper(ABC):
                 response.raise_for_status()  # 检查HTTP错误
                 return response.text
             except requests.exceptions.RequestException as e:
-                print(f"请求错误: {e} (尝试 {attempt + 1}/{max_retries})")
+                logger.warning(f"请求错误: {e} (尝试 {attempt + 1}/{max_retries})")
                 self._random_delay()
-        print(f"请求失败: {url}")
+        logger.error(f"请求失败: {url}")
         return None
 
     @abstractmethod
@@ -90,12 +93,16 @@ class BaseScraper(ABC):
             if paper.get("paper_abstract"):
                 filled.append(paper)
                 continue
-            print(f"正在获取摘要: {paper['paper_name']}")
-            abstract = self._get_paper_details(paper["paper_url"])
+            logger.info(f"正在获取摘要: {paper.get('paper_name', 'Unknown')}")
+            paper_url = paper.get("paper_url")
+            if not paper_url:
+                filled.append(paper)
+                continue
+            abstract = self._get_paper_details(paper_url)
             paper["paper_abstract"] = abstract or ""
             filled.append(paper)
             if (i + 1) % 10 == 0:
-                print(f"摘要进度: {i+1}/{len(papers)}")
+                logger.info(f"摘要进度: {i+1}/{len(papers)}")
             self._random_delay()
         return filled
 
@@ -104,7 +111,8 @@ class BaseScraper(ABC):
         """爬取特定会议和年份的论文元数据"""
         all_papers = []
         papers = self.get_conference_papers(conference, year)
-        all_papers.extend(papers)
+        if papers:
+            all_papers.extend(papers)
         
         if save_json:
             self._save_to_json(all_papers, f"{conference}_{year}_papers.json")
@@ -117,16 +125,19 @@ class BaseScraper(ABC):
         try:
             from database import insert_papers
             inserted = insert_papers(data)
-            print(f"数据库保存完成！新插入 {inserted} 篇论文（共 {len(data)} 篇）")
+            logger.info(f"数据库保存完成！新插入 {inserted} 篇论文（共 {len(data)} 篇）")
         except Exception as e:
-            print(f"数据库保存失败: {e}")
+            logger.error(f"数据库保存失败: {e}")
 
     def _save_to_json(self, data, filename):
         """将数据保存为JSON文件"""
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
 
-        print(f"\n{'='*50}")
-        print(f"爬取完成！共获取 {len(data)} 篇论文")
-        print(f"所有数据已保存到 {filename}")
-        print(f"{'='*50}")
+            logger.info(f"\n{'='*50}")
+            logger.info(f"爬取完成！共获取 {len(data)} 篇论文")
+            logger.info(f"所有数据已保存到 {filename}")
+            logger.info(f"{'='*50}")
+        except Exception as e:
+            logger.error(f"JSON保存失败: {e}")

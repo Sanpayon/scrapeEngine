@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS papers (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_paper_url ON papers(paper_url);
 CREATE INDEX IF NOT EXISTS idx_paper_name ON papers(paper_name);
 CREATE INDEX IF NOT EXISTS idx_conference_year ON papers(conference, paper_year);
+CREATE INDEX IF NOT EXISTS idx_conference_status ON conferences(status);
 
 CREATE TABLE IF NOT EXISTS conferences (
     name TEXT NOT NULL,
@@ -43,6 +44,7 @@ def _get_connection(db_path=None):
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
+    conn.execute("PRAGMA busy_timeout=5000;")
     return conn
 
 
@@ -69,18 +71,12 @@ def _compute_id(paper_url, paper_name):
 def insert_paper(paper: dict, db_path=None) -> bool:
     """插入单篇论文，若 paper_url 已存在则跳过；返回是否为新插入。"""
     with get_db(db_path) as conn:
-        existing = conn.execute(
-            "SELECT 1 FROM papers WHERE paper_url = ?", (paper["paper_url"],)
-        ).fetchone()
-        if existing:
-            return False
-
         _id = paper.get("_id", "") or _compute_id(
             paper["paper_url"], paper["paper_name"]
         )
-        conn.execute(
+        cursor = conn.execute(
             """
-            INSERT INTO papers
+            INSERT OR IGNORE INTO papers
                 (_id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation, conference, source)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -97,7 +93,7 @@ def insert_paper(paper: dict, db_path=None) -> bool:
             ),
         )
         conn.commit()
-        return True
+        return cursor.rowcount > 0
 
 
 def insert_papers(papers: list[dict], db_path=None) -> int:
@@ -106,39 +102,34 @@ def insert_papers(papers: list[dict], db_path=None) -> int:
         return 0
 
     with get_db(db_path) as conn:
-        inserted = 0
+        changes_before = conn.total_changes
+        rows = []
         for paper in papers:
-            existing = conn.execute(
-                "SELECT 1 FROM papers WHERE paper_url = ?", (paper["paper_url"],)
-            ).fetchone()
-            if existing:
-                continue
-
             _id = paper.get("_id", "") or _compute_id(
                 paper["paper_url"], paper["paper_name"]
             )
-            conn.execute(
-                """
-                INSERT INTO papers
-                    (_id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation, conference, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    _id,
-                    paper["paper_url"],
-                    paper.get("paper_abstract", ""),
-                    paper.get("paper_authors", ""),
-                    paper["paper_name"],
-                    paper.get("paper_year", ""),
-                    paper.get("citation", ""),
-                    paper.get("conference", ""),
-                    paper.get("source", "conference"),
-                ),
-            )
-            inserted += 1
+            rows.append((
+                _id,
+                paper["paper_url"],
+                paper.get("paper_abstract", ""),
+                paper.get("paper_authors", ""),
+                paper["paper_name"],
+                paper.get("paper_year", ""),
+                paper.get("citation", ""),
+                paper.get("conference", ""),
+                paper.get("source", "conference"),
+            ))
 
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO papers
+                (_id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation, conference, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
         conn.commit()
-        return inserted
+        return conn.total_changes - changes_before
 
 
 def query_papers(
@@ -321,7 +312,3 @@ def get_stats(db_path=None) -> dict:
             ).fetchall()
         )
         return {"total": total, "by_conference": by_conf, "by_source": by_source}
-
-
-# 初始化数据库（模块导入时自动执行）
-init_db()

@@ -7,8 +7,11 @@
 
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import logging
 
 from scrapers.base_scraper import BaseScraper
+
+logger = logging.getLogger(__name__)
 
 
 class ICLRScraper(BaseScraper):
@@ -25,7 +28,7 @@ class ICLRScraper(BaseScraper):
         :return: 论文元数据列表
         """
         conference_url = f"{self.base_url}/virtual/{year}/papers.html"
-        print(f"正在获取 ICLR {year} 的论文列表...")
+        logger.info(f"正在获取 ICLR {year} 的论文列表...")
 
         html = self._make_request(conference_url)
         if not html:
@@ -38,10 +41,9 @@ class ICLRScraper(BaseScraper):
         papers = []
         poster_links = soup.find_all('a', href=lambda x: x and f'/virtual/{year}/poster/' in x)
 
-        # 第一个链接通常是登录链接，跳过
         poster_links = [l for l in poster_links if '/accounts/login' not in l.get('href', '')]
 
-        print(f"找到 {len(poster_links)} 篇论文")
+        logger.info(f"找到 {len(poster_links)} 篇论文")
 
         for i, link in enumerate(poster_links):
             try:
@@ -54,12 +56,12 @@ class ICLRScraper(BaseScraper):
                 if paper_data:
                     papers.append(paper_data)
                 if (i + 1) % 10 == 0:
-                    print(f"进度: {i+1}/{len(poster_links)}")
+                    logger.info(f"进度: {i+1}/{len(poster_links)}")
             except Exception as e:
-                print(f"提取论文元数据时出错: {e}")
+                logger.error(f"提取论文元数据时出错: {e}")
                 continue
 
-        print(f"完成！成功提取 {len(papers)} 篇论文")
+        logger.info(f"完成！成功提取 {len(papers)} 篇论文")
         return papers
 
     def get_conference_metadata(self, conference, year):
@@ -67,7 +69,7 @@ class ICLRScraper(BaseScraper):
         提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
         """
         conference_url = f"{self.base_url}/virtual/{year}/papers.html"
-        print(f"正在获取 ICLR {year} 的轻量级元数据...")
+        logger.info(f"正在获取 ICLR {year} 的轻量级元数据...")
 
         html = self._make_request(conference_url)
         if not html:
@@ -76,7 +78,7 @@ class ICLRScraper(BaseScraper):
         soup = BeautifulSoup(html, 'html.parser')
         poster_links = soup.find_all('a', href=lambda x: x and f'/virtual/{year}/poster/' in x)
         poster_links = [l for l in poster_links if '/accounts/login' not in l.get('href', '')]
-        print(f"找到 {len(poster_links)} 篇论文")
+        logger.info(f"找到 {len(poster_links)} 篇论文")
 
         papers = []
         for link in poster_links:
@@ -97,7 +99,7 @@ class ICLRScraper(BaseScraper):
             }
             papers.append(paper_data)
 
-        print(f"完成！提取 {len(papers)} 篇轻量级元数据")
+        logger.info(f"完成！提取 {len(papers)} 篇轻量级元数据")
         return papers
 
     def _extract_paper_metadata(self, title_elem, conference, year):

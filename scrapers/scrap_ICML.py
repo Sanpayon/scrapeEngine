@@ -7,8 +7,11 @@
 
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import logging
 
 from scrapers.base_scraper import BaseScraper
+
+logger = logging.getLogger(__name__)
 
 
 class ICMLScraper(BaseScraper):
@@ -42,11 +45,11 @@ class ICMLScraper(BaseScraper):
         """
         volume = self.YEAR_TO_VOLUME.get(year)
         if not volume:
-            print(f"不支持的年份: {year}，支持的年份: {sorted(self.YEAR_TO_VOLUME.keys())}")
+            logger.warning(f"不支持的年份: {year}，支持的年份: {sorted(self.YEAR_TO_VOLUME.keys())}")
             return []
 
         conference_url = f"{self.base_url}{volume}/"
-        print(f"正在获取 ICML {year} ({volume}) 的论文列表...")
+        logger.info(f"正在获取 ICML {year} ({volume}) 的论文列表...")
 
         html = self._make_request(conference_url)
         if not html:
@@ -59,7 +62,7 @@ class ICMLScraper(BaseScraper):
         papers = []
         paper_divs = soup.find_all('div', class_='paper')
 
-        print(f"找到 {len(paper_divs)} 篇论文")
+        logger.info(f"找到 {len(paper_divs)} 篇论文")
 
         for i, paper_div in enumerate(paper_divs):
             try:
@@ -67,12 +70,12 @@ class ICMLScraper(BaseScraper):
                 if paper_data:
                     papers.append(paper_data)
                 if (i + 1) % 10 == 0:
-                    print(f"进度: {i+1}/{len(paper_divs)}")
+                    logger.info(f"进度: {i+1}/{len(paper_divs)}")
             except Exception as e:
-                print(f"提取论文元数据时出错: {e}")
+                logger.error(f"提取论文元数据时出错: {e}")
                 continue
 
-        print(f"完成！成功提取 {len(papers)} 篇论文")
+        logger.info(f"完成！成功提取 {len(papers)} 篇论文")
         return papers
 
     def get_conference_metadata(self, conference, year):
@@ -84,7 +87,7 @@ class ICMLScraper(BaseScraper):
             return []
 
         conference_url = f"{self.base_url}{volume}/"
-        print(f"正在获取 ICML {year} ({volume}) 的轻量级元数据...")
+        logger.info(f"正在获取 ICML {year} ({volume}) 的轻量级元数据...")
 
         html = self._make_request(conference_url)
         if not html:
@@ -92,7 +95,7 @@ class ICMLScraper(BaseScraper):
 
         soup = BeautifulSoup(html, 'html.parser')
         paper_divs = soup.find_all('div', class_='paper')
-        print(f"找到 {len(paper_divs)} 篇论文")
+        logger.info(f"找到 {len(paper_divs)} 篇论文")
 
         papers = []
         for paper_div in paper_divs:
@@ -100,7 +103,7 @@ class ICMLScraper(BaseScraper):
             if paper_data:
                 papers.append(paper_data)
 
-        print(f"完成！提取 {len(papers)} 篇轻量级元数据")
+        logger.info(f"完成！提取 {len(papers)} 篇轻量级元数据")
         return papers
 
     def _extract_lightweight_from_div(self, paper_div, conference, year):
@@ -180,7 +183,7 @@ class ICMLScraper(BaseScraper):
         if not paper_url:
             return None
 
-        print(f"正在获取论文详情: {paper_name}")
+        logger.info(f"正在获取论文详情: {paper_name}")
 
         abstract = self._get_paper_details(paper_url)
 

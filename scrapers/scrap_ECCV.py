@@ -7,8 +7,11 @@
 
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import logging
 
 from scrapers.base_scraper import BaseScraper
+
+logger = logging.getLogger(__name__)
 
 
 class ECCVScraper(BaseScraper):
@@ -22,7 +25,7 @@ class ECCVScraper(BaseScraper):
         提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
         """
         conference_url = f"{self.base_url}papers.php"
-        print(f"正在获取 ECCV {year} 的轻量级元数据...")
+        logger.info(f"正在获取 ECCV {year} 的轻量级元数据...")
 
         html = self._make_request(conference_url)
         if not html:
@@ -30,7 +33,7 @@ class ECCVScraper(BaseScraper):
 
         soup = BeautifulSoup(html, 'html.parser')
         paper_title_elements = soup.find_all('dt', class_='ptitle')
-        print(f"找到 {len(paper_title_elements)} 篇论文（所有年份）")
+        logger.info(f"找到 {len(paper_title_elements)} 篇论文（所有年份）")
 
         papers = []
         for title_elem in paper_title_elements:
@@ -38,7 +41,7 @@ class ECCVScraper(BaseScraper):
             if paper_data:
                 papers.append(paper_data)
 
-        print(f"完成！提取 {len(papers)} 篇 ECCV {year} 轻量级元数据")
+        logger.info(f"完成！提取 {len(papers)} 篇 ECCV {year} 轻量级元数据")
         return papers
 
     def _extract_lightweight_from_elem(self, title_elem, conference, year):
@@ -80,7 +83,7 @@ class ECCVScraper(BaseScraper):
         :return: 论文元数据列表
         """
         conference_url = f"{self.base_url}papers.php"
-        print(f"正在获取 ECCV {year} 的论文列表...")
+        logger.info(f"正在获取 ECCV {year} 的论文列表...")
 
         html = self._make_request(conference_url)
         if not html:
@@ -93,7 +96,7 @@ class ECCVScraper(BaseScraper):
         papers = []
         paper_title_elements = soup.find_all('dt', class_='ptitle')
 
-        print(f"找到 {len(paper_title_elements)} 篇论文（所有年份）")
+        logger.info(f"找到 {len(paper_title_elements)} 篇论文（所有年份）")
 
         for i, title_elem in enumerate(paper_title_elements):
             try:
@@ -101,12 +104,12 @@ class ECCVScraper(BaseScraper):
                 if paper_data:
                     papers.append(paper_data)
                 if (i + 1) % 100 == 0:
-                    print(f"进度: 已处理 {i+1}/{len(paper_title_elements)}，成功提取 {len(papers)} 篇")
+                    logger.info(f"进度: 已处理 {i+1}/{len(paper_title_elements)}，成功提取 {len(papers)} 篇")
             except Exception as e:
-                print(f"提取论文元数据时出错: {e}")
+                logger.error(f"提取论文元数据时出错: {e}")
                 continue
 
-        print(f"完成！成功提取 {len(papers)} 篇 ECCV {year} 论文")
+        logger.info(f"完成！成功提取 {len(papers)} 篇 ECCV {year} 论文")
         return papers
 
     def _extract_paper_metadata(self, title_elem, conference, year):
@@ -135,7 +138,7 @@ class ECCVScraper(BaseScraper):
         authors_text = next_dd.get_text(strip=True)
         paper_authors = authors_text if authors_text else "Unknown"
 
-        print(f"正在获取论文详情: {paper_name}")
+        logger.info(f"正在获取论文详情: {paper_name}")
 
         abstract = self._get_paper_details(paper_url)
 

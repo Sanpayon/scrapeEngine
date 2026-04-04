@@ -1,6 +1,13 @@
 .git/
 .vscode/
+.venv/
+venv/
 ppenv/
-scrapers/__pycache__/
-*__pycache__
+__pycache__/
 *.db
+*.log
+.ccf_cache/
+*.json
+.env
+scheduler.log
+jobs.db

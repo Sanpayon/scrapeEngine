@@ -5,10 +5,14 @@
     _id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation
 """
 
+import re
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import logging
 
 from scrapers.base_scraper import BaseScraper
+
+logger = logging.getLogger(__name__)
 
 
 class AAAIScraper(BaseScraper):
@@ -40,7 +44,6 @@ class AAAIScraper(BaseScraper):
             soup = BeautifulSoup(html, 'html.parser')
             issue_links = soup.find_all('a', href=lambda x: x and 'issue/view/' in str(x))
 
-            import re
             page_has_any = False
             for link in issue_links:
                 text = link.get_text(strip=True)
@@ -62,14 +65,14 @@ class AAAIScraper(BaseScraper):
             page += 1
             self._random_delay()
 
-        print(f"找到 {len(issue_urls)} 个 AAAI {year} issue")
+        logger.info(f"找到 {len(issue_urls)} 个 AAAI {year} issue")
         return issue_urls
 
     def get_conference_metadata(self, conference, year):
         """
         提取轻量级元数据（标题、作者、URL），不访问详情页，摘要为空
         """
-        print(f"正在获取 AAAI {year} 的轻量级元数据...")
+        logger.info(f"正在获取 AAAI {year} 的轻量级元数据...")
 
         issue_urls = self._get_issue_urls_for_year(year)
         if not issue_urls:
@@ -110,7 +113,7 @@ class AAAIScraper(BaseScraper):
                 }
                 papers.append(paper_data)
 
-        print(f"完成！提取 {len(papers)} 篇 AAAI {year} 轻量级元数据")
+        logger.info(f"完成！提取 {len(papers)} 篇 AAAI {year} 轻量级元数据")
         return papers
 
     def get_conference_papers(self, conference, year):
@@ -120,18 +123,18 @@ class AAAIScraper(BaseScraper):
         :param year: 年份
         :return: 论文元数据列表
         """
-        print(f"正在获取 AAAI {year} 的论文列表...")
+        logger.info(f"正在获取 AAAI {year} 的论文列表...")
 
         issue_urls = self._get_issue_urls_for_year(year)
         if not issue_urls:
-            print(f"未找到 AAAI {year} 的 issue")
+            logger.warning(f"未找到 AAAI {year} 的 issue")
             return []
 
         papers = []
         total_papers = 0
 
         for issue_idx, issue_url in enumerate(issue_urls):
-            print(f"\n正在获取 issue {issue_idx + 1}/{len(issue_urls)}: {issue_url}")
+            logger.info(f"正在获取 issue {issue_idx + 1}/{len(issue_urls)}: {issue_url}")
 
             html = self._make_request(issue_url)
             if not html:
@@ -160,14 +163,14 @@ class AAAIScraper(BaseScraper):
                     if paper_data:
                         papers.append(paper_data)
                     if total_papers % 10 == 0:
-                        print(f"进度: 已处理 {total_papers} 篇，成功提取 {len(papers)} 篇")
+                        logger.info(f"进度: 已处理 {total_papers} 篇，成功提取 {len(papers)} 篇")
                 except Exception as e:
-                    print(f"提取论文元数据时出错: {e}")
+                    logger.error(f"提取论文元数据时出错: {e}")
                     continue
 
             self._random_delay()
 
-        print(f"\n完成！共处理 {total_papers} 篇，成功提取 {len(papers)} 篇 AAAI {year} 论文")
+        logger.info(f"完成！共处理 {total_papers} 篇，成功提取 {len(papers)} 篇 AAAI {year} 论文")
         return papers
 
     def _extract_paper_metadata(self, title_elem, conference, year):
