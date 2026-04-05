@@ -12,6 +12,7 @@ import os
 import logging
 import random
 import importlib
+import time
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -54,18 +55,11 @@ scheduler = BlockingScheduler(
     executors=executors,
 )
 
-def _schedule_with_random_delay(job_func, job_id, min_minute=0, max_minute=30):
-    """使用 APScheduler 的 date trigger 在随机延迟后调度任务，不阻塞线程。"""
+def _random_delay(min_minute=0, max_minute=30):
+    """在指定范围内随机延迟，单位为分钟。"""
     delay = random.randint(min_minute, max_minute)
-    run_time = datetime.now() + timedelta(minutes=delay)
-    logger.info(f"调度任务 {job_id} 在 {delay} 分钟后执行 (预计 {run_time})")
-    scheduler.add_job(
-        job_func,
-        "date",
-        run_date=run_time,
-        id=f"delayed_{job_id}_{int(datetime.now().timestamp())}",
-        replace_existing=False,
-    )
+    logger.info(f"随机延迟 {delay} 分钟...")
+    time.sleep(delay * 60)
 
 
 def _get_scraper(conf_name: str):
@@ -95,13 +89,8 @@ def _get_scraper(conf_name: str):
 def job_check_ccf_deadlines(random_delay=True):
     """获取 CCF-Deadlines 会议信息并更新到数据库。"""
     if random_delay:
-        _schedule_with_random_delay(_do_check_ccf_deadlines, "ccf_check")
-        return
-    _do_check_ccf_deadlines()
+        _random_delay()
 
-
-def _do_check_ccf_deadlines():
-    """实际执行 CCF-Deadlines 检查的逻辑。"""
     logger.info("=== 开始检查 CCF-Deadlines ===")
     try:
         all_confs = fetch_all_target_conferences()
@@ -143,11 +132,7 @@ def _do_check_ccf_deadlines():
 # ============================================================
 def job_scrape_arxiv_for_upcoming():
     """对 upcoming 会议爬取 arxiv 预印本。"""
-    _schedule_with_random_delay(_do_scrape_arxiv, "arxiv_scrape")
-
-
-def _do_scrape_arxiv():
-    """实际执行 arxiv 爬取的逻辑。"""
+    _random_delay()
     logger.info("=== 开始爬取 arxiv 预印本 ===")
     try:
         upcoming = get_conferences(status="upcoming")
@@ -176,11 +161,7 @@ def _do_scrape_arxiv():
 # ============================================================
 def job_check_and_scrape_conferences():
     """检查哪些会议开始日期 + 10 天，触发爬取。"""
-    _schedule_with_random_delay(_do_check_and_scrape_conferences, "conference_check")
-
-
-def _do_check_and_scrape_conferences():
-    """实际执行会议爬取检查的逻辑。"""
+    _random_delay()
     logger.info("=== 开始检查会议爬取任务 ===")
     try:
         now = datetime.now()
@@ -285,7 +266,6 @@ def _scrape_conference_with_retry(conf_name: str, year: str, max_retries: int = 
 # ============================================================
 def setup_scheduler():
     """配置定时任务"""
-
 
     # 每天 18:00 检查 CCF-Deadlines
     scheduler.add_job(
