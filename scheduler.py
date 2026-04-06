@@ -22,7 +22,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from database import (
-    init_db, insert_or_update_conference, get_conferences,
+    init_db, insert_or_update_conference, get_conferences_with_status,
     update_conference_status, update_conference_scrape_info,
     get_paper_titles, get_paper_count, insert_papers, paper_exists_by_name,
     update_paper_abstract, get_stats, get_unscraped_conferences
@@ -95,6 +95,11 @@ def job_check_ccf_deadlines(random_delay=True):
     try:
         all_confs = fetch_all_target_conferences()
         logger.info(f"获取到 {len(all_confs)} 条会议记录")
+        existing_status_map = {
+            (c["name"], str(c["year"])): c.get("status", "")
+            for c in get_conferences_with_status()
+        }
+        terminal_statuses = {"arxived", "scraped"}
 
         now = datetime.now()
         now_str = now.strftime("%Y-%m-%d")
@@ -103,23 +108,29 @@ def job_check_ccf_deadlines(random_delay=True):
             conf_year = int(conf.get("year", 0))
             start_date = conf.get("start_date", "")
             end_date = conf.get("end_date", "")
-            current_status = conf.get("status", "upcoming")
-
-            if current_status == "scraped":
-                pass
-            elif conf_year < current_year:
-                conf["status"] = "past"
+            if conf_year < current_year:
+                synced_status = "past"
             elif start_date:
                 end_dt = datetime.strptime(end_date, "%Y-%m-%d") if end_date else datetime.strptime(start_date, "%Y-%m-%d")
 
                 if now_str > end_dt.strftime("%Y-%m-%d"):
-                    conf["status"] = "past"
+                    synced_status = "past"
                 elif now_str >= start_date:
-                    conf["status"] = "ongoing"
+                    synced_status = "ongoing"
                 else:
-                    conf["status"] = "upcoming"
+                    synced_status = "upcoming"
             else:
-                conf["status"] = "upcoming"
+                synced_status = "upcoming"
+
+            conf_key = (conf["name"], str(conf["year"]))
+            existing_status = existing_status_map.get(conf_key, "")
+            if existing_status in terminal_statuses and synced_status not in terminal_statuses:
+                conf["status"] = existing_status
+                logger.info(
+                    f"  保留终态: {conf['name']} {conf['year']} - {existing_status} (CCF 状态: {synced_status})"
+                )
+            else:
+                conf["status"] = synced_status
 
             insert_or_update_conference(conf)
             logger.info(f"  更新: {conf['name']} {conf['year']} - {conf['status']}")
@@ -137,9 +148,9 @@ def job_scrape_arxiv():
     _random_delay()
     logger.info("=== 开始爬取 arxiv 预印本 ===")
     try:
-        upcoming = get_conferences(status="upcoming")
-        ongoing = get_conferences(status="ongoing")
-        past = get_conferences(status="past")
+        upcoming = get_conferences_with_status(status="upcoming")
+        ongoing = get_conferences_with_status(status="ongoing")
+        past = get_conferences_with_status(status="past")
         targets = upcoming + ongoing + past
         if not targets:
             logger.info("没有 upcoming / ongoing / past 状态的会议")
@@ -181,7 +192,7 @@ def job_check_and_scrape_conferences():
     _random_delay()
     logger.info("=== 开始检查会议爬取任务 ===")
     try:
-        arxived = get_conferences(status="arxived")
+        arxived = get_conferences_with_status(status="arxived")
         if not arxived:
             logger.info("没有 arxived 状态的会议")
             return
@@ -306,7 +317,7 @@ def print_status():
     stats = get_stats()
     logger.info(f"数据库统计: {stats}")
 
-    confs = get_conferences()
+    confs = get_conferences_with_status()
     if confs:
         logger.info("会议状态:")
         for c in confs:

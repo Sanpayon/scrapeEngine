@@ -259,7 +259,7 @@ def insert_or_update_conference(conf: dict, db_path=None) -> bool:
         return True
 
 
-def get_conferences(status: str | None = None, db_path=None) -> list[dict]:
+def get_conferences_with_status(status: str | None = None, db_path=None) -> list[dict]:
     """获取会议列表，可按状态过滤。"""
     with get_db(db_path) as conn:
         conn.row_factory = sqlite3.Row
