@@ -55,11 +55,11 @@ scheduler = BlockingScheduler(
     executors=executors,
 )
 
-def _random_delay(min_minute=0, max_minute=30):
+def _random_delay(min_minute=0, max_minute=30, min_second=0, max_second=59):
     """在指定范围内随机延迟，单位为分钟。"""
     delay = random.randint(min_minute, max_minute)
     logger.info(f"随机延迟 {delay} 分钟...")
-    time.sleep(delay * 60)
+    time.sleep(delay * 60 + random.randint(min_second, max_second))
 
 
 def _get_scraper(conf_name: str):
@@ -132,7 +132,7 @@ def job_check_ccf_deadlines(random_delay=True):
 # ============================================================
 # Job 2: 每天 07:00 爬取 arxiv 预印本
 # ============================================================
-def job_scrape_arxiv_for_upcoming():
+def job_scrape_arxiv():
     """对 upcoming / ongoing / past 会议爬取 arxiv 预印本。"""
     _random_delay()
     logger.info("=== 开始爬取 arxiv 预印本 ===")
@@ -276,7 +276,7 @@ def setup_scheduler():
 
     # 每天 07:00 爬取 arxiv 预印本
     scheduler.add_job(
-        job_scrape_arxiv_for_upcoming,
+        job_scrape_arxiv,
         "cron", hour=7, minute=0,
         id="arxiv_scrape",
         replace_existing=True,
