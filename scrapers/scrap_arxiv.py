@@ -9,6 +9,8 @@ import arxiv
 import json
 import logging
 
+logging.getLogger("arxiv").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 def crawl_arxiv(max_results=4000, sort_by=arxiv.SortCriterion.Relevance, conference="NeurIPS", year="2026", save_json=False):
