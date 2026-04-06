@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS papers (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_paper_url ON papers(paper_url);
 CREATE INDEX IF NOT EXISTS idx_paper_name ON papers(paper_name);
 CREATE INDEX IF NOT EXISTS idx_conference_year ON papers(conference, paper_year);
-CREATE INDEX IF NOT EXISTS idx_conference_status ON conferences(status);
+
 
 CREATE TABLE IF NOT EXISTS conferences (
     name TEXT NOT NULL,
@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS conferences (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (name, year)
 );
+
+CREATE INDEX IF NOT EXISTS idx_conference_status ON conferences(status);
 """
 
 
