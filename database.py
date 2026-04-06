@@ -195,6 +195,16 @@ def get_paper_titles(conference: str, year: str, db_path=None) -> list[str]:
         return [r[0] for r in rows]
 
 
+def get_paper_count(conference: str, year: str, db_path=None) -> int:
+    """获取指定会议和年份的论文总数。"""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM papers WHERE conference = ? AND paper_year = ?",
+            (conference, str(year)),
+        ).fetchone()
+        return row[0] if row else 0
+
+
 def update_paper_abstract(paper_url: str, abstract: str, db_path=None) -> bool:
     """更新已有论文的摘要。"""
     with get_db(db_path) as conn:

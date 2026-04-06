@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from database import (
     init_db, insert_or_update_conference, get_conferences,
     update_conference_status, update_conference_scrape_info,
-    get_paper_titles, insert_papers, paper_exists_by_name,
+    get_paper_titles, get_paper_count, insert_papers, paper_exists_by_name,
     update_paper_abstract, get_stats, get_unscraped_conferences
 )
 from ccf_parser import (
@@ -151,9 +151,17 @@ def job_scrape_arxiv():
             name = conf["name"]
             year = conf["year"]
             status = conf["status"]
-            logger.info(f"爬取 arxiv: {name} {year} (status={status})")
+
+            existing_count = get_paper_count(name, year)
+            if existing_count == 0:
+                max_results = 4000
+                logger.info(f"爬取 arxiv: {name} {year} (status={status}, 首次爬取, max_results={max_results})")
+            else:
+                max_results = 500
+                logger.info(f"爬取 arxiv: {name} {year} (status={status}, 已有 {existing_count} 篇, 增量爬取, max_results={max_results})")
+
             try:
-                crawl_arxiv(max_results=4000, conference=name, year=year)
+                crawl_arxiv(max_results=max_results, conference=name, year=year)
                 if status == "past":
                     update_conference_status(name, year, "arxived")
                     logger.info(f"  {name} {year} 已标记为 arxived")
