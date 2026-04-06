@@ -291,8 +291,7 @@ def get_unscraped_conferences(db_path=None) -> list[dict]:
         rows = conn.execute(
             """
             SELECT * FROM conferences
-            WHERE status IN ('upcoming', 'ongoing')
-              AND date(end_date, '+10 days') < date('now')
+            WHERE status IN ('past', 'arxived')
             ORDER BY end_date
             """
         ).fetchall()

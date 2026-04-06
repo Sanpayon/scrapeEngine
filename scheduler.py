@@ -103,16 +103,18 @@ def job_check_ccf_deadlines(random_delay=True):
             conf_year = int(conf.get("year", 0))
             start_date = conf.get("start_date", "")
             end_date = conf.get("end_date", "")
+            current_status = conf.get("status", "upcoming")
 
-            if conf_year < current_year:
-                conf["status"] = "completed"
+            if current_status == "scraped":
+                pass
+            elif conf_year < current_year:
+                conf["status"] = "past"
             elif start_date:
-                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-                end_dt = datetime.strptime(end_date, "%Y-%m-%d") if end_date else start_dt
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d") if end_date else datetime.strptime(start_date, "%Y-%m-%d")
 
                 if now_str > end_dt.strftime("%Y-%m-%d"):
-                    conf["status"] = "completed"
-                elif now_str >= start_dt.strftime("%Y-%m-%d"):
+                    conf["status"] = "past"
+                elif now_str >= start_date:
                     conf["status"] = "ongoing"
                 else:
                     conf["status"] = "upcoming"
@@ -131,23 +133,30 @@ def job_check_ccf_deadlines(random_delay=True):
 # Job 2: 每天 08:00 爬取 arxiv 预印本
 # ============================================================
 def job_scrape_arxiv_for_upcoming():
-    """对 upcoming 会议爬取 arxiv 预印本。"""
+    """对 upcoming / ongoing / past 会议爬取 arxiv 预印本。"""
     _random_delay()
     logger.info("=== 开始爬取 arxiv 预印本 ===")
     try:
         upcoming = get_conferences(status="upcoming")
-        if not upcoming:
-            logger.info("没有 upcoming 状态的会议")
+        ongoing = get_conferences(status="ongoing")
+        past = get_conferences(status="past")
+        targets = upcoming + ongoing + past
+        if not targets:
+            logger.info("没有 upcoming / ongoing / past 状态的会议")
             return
 
         from scrapers.scrap_arxiv import crawl_arxiv
 
-        for conf in upcoming:
+        for conf in targets:
             name = conf["name"]
             year = conf["year"]
-            logger.info(f"爬取 arxiv: {name} {year}")
+            status = conf["status"]
+            logger.info(f"爬取 arxiv: {name} {year} (status={status})")
             try:
                 crawl_arxiv(max_results=4000, conference=name, year=year)
+                if status == "past":
+                    update_conference_status(name, year, "arxived")
+                    logger.info(f"  {name} {year} 已标记为 arxived")
             except Exception as e:
                 logger.error(f"arxiv 爬取失败 {name} {year}: {e}")
 
@@ -160,31 +169,20 @@ def job_scrape_arxiv_for_upcoming():
 # Job 3: 每天 02:00 检查并爬取会议论文
 # ============================================================
 def job_check_and_scrape_conferences():
-    """检查哪些会议开始日期 + 10 天，触发爬取。"""
+    """爬取状态为 arxived 的会议论文（arxiv 已爬完，等待官网爬取）。"""
     _random_delay()
     logger.info("=== 开始检查会议爬取任务 ===")
     try:
-        now = datetime.now()
-        upcoming = get_conferences(status="upcoming")
-        ongoing = get_conferences(status="ongoing")
+        arxived = get_conferences(status="arxived")
+        if not arxived:
+            logger.info("没有 arxived 状态的会议")
+            return
 
-        for conf in upcoming + ongoing:
+        for conf in arxived:
             name = conf["name"]
             year = conf["year"]
-            start_date = conf.get("start_date", "")
-
-            if not start_date:
-                continue
-
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-            scrape_date = start_dt + timedelta(days=10)
-
-            if now >= scrape_date:
-                logger.info(f"触发爬取: {name} {year} (开始日期: {start_date})")
-                _scrape_conference_with_retry(name, year)
-            else:
-                days_left = (scrape_date - now).days
-                logger.info(f"  跳过: {name} {year} (还需 {days_left} 天)")
+            logger.info(f"触发爬取: {name} {year}")
+            _scrape_conference_with_retry(name, year)
 
         logger.info("=== 会议爬取检查完成 ===")
     except Exception as e:
@@ -317,7 +315,11 @@ def recover_unscraped_conferences():
     for conf in unscraped:
         name = conf["name"]
         year = conf["year"]
+        status = conf.get("status", "")
         retry_count = conf.get("scrape_retry_count", 0)
+        if status == "past":
+            logger.info(f"  跳过 {name} {year}（尚未 arxived，等待 arxiv 爬取）")
+            continue
         if retry_count >= 3:
             logger.info(f"  跳过 {name} {year}（已达最大重试次数）")
             continue
