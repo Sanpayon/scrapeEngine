@@ -130,7 +130,7 @@ def job_check_ccf_deadlines(random_delay=True):
 
 
 # ============================================================
-# Job 2: 每天 08:00 爬取 arxiv 预印本
+# Job 2: 每天 07:00 爬取 arxiv 预印本
 # ============================================================
 def job_scrape_arxiv_for_upcoming():
     """对 upcoming / ongoing / past 会议爬取 arxiv 预印本。"""
@@ -166,7 +166,7 @@ def job_scrape_arxiv_for_upcoming():
 
 
 # ============================================================
-# Job 3: 每天 02:00 检查并爬取会议论文
+# Job 3: 每天 20:00 检查并爬取会议论文
 # ============================================================
 def job_check_and_scrape_conferences():
     """爬取状态为 arxived 的会议论文（arxiv 已爬完，等待官网爬取）。"""
@@ -190,7 +190,7 @@ def job_check_and_scrape_conferences():
 
 
 def _scrape_conference_with_retry(conf_name: str, year: str, max_retries: int = 3, retry_count: int = 0):
-    """爬取会议论文，失败则在 30-45 分钟后重试，最多 3 次。"""
+    """爬取会议论文，失败则在 15-20 分钟后重试，最多 3 次。"""
     logger.info(f"开始爬取 {conf_name} {year} (尝试 {retry_count + 1}/{max_retries + 1})")
 
     scraper = _get_scraper(conf_name)
@@ -238,7 +238,7 @@ def _scrape_conference_with_retry(conf_name: str, year: str, max_retries: int = 
 
         next_retry = retry_count + 1
         if next_retry <= max_retries:
-            delay_minutes = random.randint(30, 45)
+            delay_minutes = random.randint(15, 20)
             retry_time = datetime.now() + timedelta(minutes=delay_minutes)
             logger.info(f"安排重试 ({next_retry}/{max_retries}): {conf_name} {year} @ {retry_time} (延迟 {delay_minutes} 分钟)")
 
@@ -274,19 +274,19 @@ def setup_scheduler():
         max_instances=1,
     )
 
-    # 每天 08:00 爬取 arxiv 预印本
+    # 每天 07:00 爬取 arxiv 预印本
     scheduler.add_job(
         job_scrape_arxiv_for_upcoming,
-        "cron", hour=8, minute=0,
+        "cron", hour=7, minute=0,
         id="arxiv_scrape",
         replace_existing=True,
         max_instances=1,
     )
 
-    # 每天 02:00 检查并爬取会议论文
+    # 每天 20:00 检查并爬取会议论文
     scheduler.add_job(
         job_check_and_scrape_conferences,
-        "cron", hour=2, minute=0,
+        "cron", hour=20, minute=0,
         id="conference_check",
         replace_existing=True,
         max_instances=1,
