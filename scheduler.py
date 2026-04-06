@@ -147,7 +147,7 @@ def job_scrape_arxiv_for_upcoming():
             year = conf["year"]
             logger.info(f"爬取 arxiv: {name} {year}")
             try:
-                crawl_arxiv(max_results=500, conference=name, year=year)
+                crawl_arxiv(max_results=4000, conference=name, year=year)
             except Exception as e:
                 logger.error(f"arxiv 爬取失败 {name} {year}: {e}")
 
