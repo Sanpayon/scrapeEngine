@@ -2,6 +2,7 @@ import sqlite3
 import os
 import hashlib
 from contextlib import contextmanager
+from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "papers.db")
 
@@ -15,12 +16,14 @@ CREATE TABLE IF NOT EXISTS papers (
     paper_year TEXT,
     citation TEXT,
     conference TEXT,
-    source TEXT DEFAULT 'conference'
+    source TEXT DEFAULT 'conference',
+    last_citation_update TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_paper_url ON papers(paper_url);
 CREATE INDEX IF NOT EXISTS idx_paper_name ON papers(paper_name);
 CREATE INDEX IF NOT EXISTS idx_conference_year ON papers(conference, paper_year);
+CREATE INDEX IF NOT EXISTS idx_paper_citation_update ON papers(last_citation_update);
 
 
 CREATE TABLE IF NOT EXISTS conferences (
@@ -79,8 +82,8 @@ def insert_paper(paper: dict, db_path=None) -> bool:
         cursor = conn.execute(
             """
             INSERT OR IGNORE INTO papers
-                (_id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation, conference, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (_id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation, conference, source, last_citation_update)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
             """,
             (
                 _id,
@@ -120,13 +123,14 @@ def insert_papers(papers: list[dict], db_path=None) -> int:
                 paper.get("citation", ""),
                 paper.get("conference", ""),
                 paper.get("source", "conference"),
+                None,
             ))
 
         conn.executemany(
             """
             INSERT OR IGNORE INTO papers
-                (_id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation, conference, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (_id, paper_url, paper_abstract, paper_authors, paper_name, paper_year, citation, conference, source, last_citation_update)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -214,6 +218,65 @@ def update_paper_abstract(paper_url: str, abstract: str, db_path=None) -> bool:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+
+def get_papers_needing_citation_update(limit: int = 500, db_path=None) -> list[dict]:
+    """
+    获取最需要更新 citation 的论文。
+    优先顺序：
+    1. citation 为空的论文（按 last_citation_update 升序，即最久未更新的在前）
+    2. 新加入的论文（last_citation_update 为空）
+    """
+    with get_db(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT paper_url, paper_name, paper_authors, conference, paper_year, citation
+            FROM papers
+            WHERE citation IS NULL OR citation = '' OR citation = '0'
+            ORDER BY
+                CASE WHEN last_citation_update IS NULL OR last_citation_update = '' THEN 0 ELSE 1 END,
+                last_citation_update ASC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def update_paper_citation(paper_url: str, citation: str, db_path=None) -> bool:
+    """更新单篇论文的 citation 及其 last_citation_update 时间。"""
+    with get_db(db_path) as conn:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.execute(
+            "UPDATE papers SET citation = ?, last_citation_update = ? WHERE paper_url = ?",
+            (citation, now, paper_url),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def update_papers_citation_batch(papers: list[dict], db_path=None) -> int:
+    """
+    批量更新论文的 citation。
+    papers 格式: [{"paper_url": "...", "citation": "..."}, ...]
+    返回更新条数。
+    """
+    if not papers:
+        return 0
+    with get_db(db_path) as conn:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        count = 0
+        for p in papers:
+            if not p.get("paper_url"):
+                continue
+            cursor = conn.execute(
+                "UPDATE papers SET citation = ?, last_citation_update = ? WHERE paper_url = ?",
+                (str(p.get("citation", "")), now, p["paper_url"]),
+            )
+            count += cursor.rowcount
+        conn.commit()
+        return count
 
 
 def insert_or_update_conference(conf: dict, db_path=None) -> bool:

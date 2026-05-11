@@ -5,3 +5,5 @@ apscheduler>=3.10.0
 rapidfuzz>=3.6.0
 pyyaml>=6.0
 sqlalchemy>=2.0.0
+aiohttp>=3.9.0
+aiolimiter

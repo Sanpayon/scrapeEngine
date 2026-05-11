@@ -22,10 +22,11 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from database import (
-    init_db, insert_or_update_conference, get_conferences_with_status,
+    init_db, insert_or_update_conference, get_conferences,
     update_conference_status, update_conference_scrape_info,
     get_paper_titles, get_paper_count, insert_papers, paper_exists_by_name,
-    update_paper_abstract, get_stats, get_unscraped_conferences
+    update_paper_abstract, get_stats, get_unscraped_conferences,
+    get_papers_needing_citation_update, get_conferences_with_status,
 )
 from ccf_parser import (
     fetch_all_target_conferences, fetch_conference_info,
@@ -208,6 +209,36 @@ def job_check_and_scrape_conferences():
         logger.error(f"会议爬取检查失败: {e}", exc_info=True)
 
 
+# ============================================================
+# Job 4: 每天 03:00 更新论文 citation
+# ============================================================
+def job_update_citations():
+    """更新论文的引用次数，按最久未更新 + 新加入的顺序。"""
+    _random_delay()
+    logger.info("=== 开始更新论文 citation ===")
+    try:
+        from citation_fetcher import CitationFetcher
+        import asyncio
+
+        papers = get_papers_needing_citation_update(limit=500)
+        if not papers:
+            logger.info("没有需要更新 citation 的论文")
+            return
+
+        logger.info(f"找到 {len(papers)} 篇需要更新 citation 的论文")
+
+        fetcher = CitationFetcher()
+        asyncio.run(fetcher.fetch_batch_async(papers, concurrency=5, show_progress=True))
+
+        from database import update_papers_citation_batch
+        updated = update_papers_citation_batch(papers)
+        logger.info(f"数据库更新完成：{updated} 篇论文的 citation 已更新")
+
+        logger.info("=== citation 更新完成 ===")
+    except Exception as e:
+        logger.error(f"citation 更新失败: {e}", exc_info=True)
+
+
 def _scrape_conference_with_retry(conf_name: str, year: str, max_retries: int = 3, retry_count: int = 0):
     """爬取会议论文，失败则在 15-20 分钟后重试，最多 3 次。"""
     logger.info(f"开始爬取 {conf_name} {year} (尝试 {retry_count + 1}/{max_retries + 1})")
@@ -307,6 +338,15 @@ def setup_scheduler():
         job_check_and_scrape_conferences,
         "cron", hour=20, minute=0,
         id="conference_check",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # 每天 03:00 更新论文 citation
+    scheduler.add_job(
+        job_update_citations,
+        "cron", hour=3, minute=0,
+        id="citation_update",
         replace_existing=True,
         max_instances=1,
     )
